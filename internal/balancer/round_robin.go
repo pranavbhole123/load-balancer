@@ -2,6 +2,7 @@ package balancer
 
 import (
 	"fmt"
+	"log"
 	"net/http/httputil"
 	"net/url"
 	"sync/atomic"
@@ -16,7 +17,7 @@ type RoundRobin struct {
 // now Round robin need a constructor and a next method
 func NewRoundRobin(backends []string) (*RoundRobin, error) {
 	rr := &RoundRobin{}
-	// keep current 0 at start 
+	// keep current 0 at start
 
 	rr.current = 0
 
@@ -43,9 +44,10 @@ func NewRoundRobin(backends []string) (*RoundRobin, error) {
 
 func (r *RoundRobin) Next() (*httputil.ReverseProxy, func()) {
 
-	// now we choose the next element 
-	idx := atomic.AddUint64(&r.current , 1) % uint64(len(r.targets))
+	// now we choose the next element
+	idx := atomic.AddUint64(&r.current, 1) % uint64(len(r.targets))
+	log.Printf("picked backend %d", idx)
 
-	return r.targets[idx] , func(){}
+	return r.targets[idx], func() {}
 
 }

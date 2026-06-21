@@ -1,8 +1,8 @@
 port: 8080
-algorithm: least-connection
+algorithm: weighted
 backends:
   - url: http://localhost:9090
     weight: 1
 
   - url: http://localhost:9999
-    weight: 2
+    weight: 3

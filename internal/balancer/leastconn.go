@@ -2,6 +2,7 @@ package balancer
 
 import (
 	"fmt"
+	"log"
 	"net/http/httputil"
 	"net/url"
 	"sync"
@@ -51,6 +52,7 @@ func (l *Leastconn) Next() (*httputil.ReverseProxy, func()) {
 		}
 	}
 	l.counts[idx]++
+	log.Printf("picked backend %d", idx)
 
 	l.mu.Unlock() // unlock before returning, not deferred
 

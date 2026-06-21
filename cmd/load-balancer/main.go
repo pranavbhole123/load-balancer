@@ -10,7 +10,7 @@ import (
 	"github.com/pranavbhole123/load-balancer/internal/server"
 )
 
-func helperChoose(algo string , urls []string)(proxy.Balancer , error){
+func helperChoose(algo string , urls []string, weights []int)(proxy.Balancer , error){
 	switch algo{
 	case "round-robin":
 		a , b := balancer.NewRoundRobin(urls)
@@ -18,6 +18,9 @@ func helperChoose(algo string , urls []string)(proxy.Balancer , error){
 	case "least-connection":
 		a , b := balancer.NewLeastConn(urls)
 		return a, b
+	case "weighted":
+		a , b := balancer.NewWeighted(urls,weights)
+		return a,b
 
 	default:
 		return nil , fmt.Errorf("please enter valid algorith name %q",algo)
@@ -35,11 +38,17 @@ func main() {
 		urls[i] = b.URL
 	}
 
+	weights := make([]int , len(cfg.Backends))
+
+	for i ,b := range cfg.Backends{
+		weights[i] = b.Weight
+	}
+
 	// now we need to customixe main 
 	// firs twe need to see which type of algo and make a balancer accoringly
 	// we will make a fucntion fot this 
 
-	balance, err := helperChoose(cfg.Algorithm,urls)
+	balance, err := helperChoose(cfg.Algorithm,urls,weights)
 
 	
 	if err != nil {
