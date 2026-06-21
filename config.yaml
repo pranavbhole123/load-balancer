@@ -1,0 +1,5 @@
+port: 8080
+algorithm: round-robin
+backends:
+  - url: http://localhost:9090
+    weight: 1
