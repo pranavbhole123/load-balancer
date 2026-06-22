@@ -22,7 +22,10 @@ func New(balanc Balancer) *Proxy {
 
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	target , done := p.balancer.Next()
-
+    if target == nil {
+        http.Error(w, "no backends available", http.StatusServiceUnavailable)
+        return
+    }
     defer done()
     target.ServeHTTP(w,r)
 }

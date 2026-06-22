@@ -1,8 +1,9 @@
 port: 8080
-algorithm: weighted
+algorithm: round-robin
+health_interval: 5
+health_timeout: 3
 backends:
   - url: http://localhost:9090
     weight: 1
-
   - url: http://localhost:9999
-    weight: 3
+    weight: 1

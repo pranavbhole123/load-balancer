@@ -33,5 +33,16 @@ func Load(path string) (*config.Config, error) {
         }
     }
 
+    if con.HealthInterval == 0 {
+        con.HealthInterval = 10
+    }  
+    if con.HealthTimeout == 0 {
+        con.HealthTimeout = 3
+    
+    if con.HealthTimeout >= con.HealthInterval {
+    return nil, fmt.Errorf("parser: health_timeout (%ds) must be less than health_interval (%ds)", 
+        con.HealthTimeout, con.HealthInterval)
+    }}
+
     return &con, nil
 }

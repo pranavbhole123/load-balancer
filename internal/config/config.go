@@ -7,6 +7,8 @@ type Config struct {
     Port      int             `yaml:"port"`
     Backends  []BackendConfig `yaml:"backends"`
     Algorithm string          `yaml:"algorithm"`
+    HealthInterval  int       `yaml:"health_interval"`  // seconds between checks
+    HealthTimeout   int       `yaml:"health_timeout"`   // seconds before giving up
 }
 
 type BackendConfig struct {

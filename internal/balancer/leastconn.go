@@ -2,10 +2,11 @@ package balancer
 
 import (
 	"fmt"
-	"log"
 	"net/http/httputil"
 	"net/url"
 	"sync"
+
+	"github.com/pranavbhole123/load-balancer/internal/health"
 )
 
 type Leastconn struct {
@@ -13,12 +14,14 @@ type Leastconn struct {
 	targets []*httputil.ReverseProxy
 	counts  []int64
 	mu      sync.Mutex
+	checker *health.Checker
 }
 
 // now we need a constructo
 
-func NewLeastConn(backends []string) (*Leastconn, error) {
+func NewLeastConn(backends []string, checker *health.Checker) (*Leastconn, error) {
 	l := &Leastconn{}
+	l.checker = checker
 
 	for _, b := range backends {
 		remote, err := url.Parse(b)
@@ -42,20 +45,26 @@ func NewLeastConn(backends []string) (*Leastconn, error) {
 
 func (l *Leastconn) Next() (*httputil.ReverseProxy, func()) {
 	l.mu.Lock()
+	defer l.mu.Unlock()
 
-	mini := l.counts[0]
-	idx := 0
-	for i, val := range l.counts {
-		if val < mini {
+	idx := -1
+	mini := int64(-1)
+
+	for i := range l.targets {
+		if !l.checker.IsActive(i) {
+			continue
+		}
+		if mini == -1 || l.counts[i] < mini {
+			mini = l.counts[i]
 			idx = i
-			mini = val
 		}
 	}
+
+	if idx == -1 {
+		return nil, func() {}
+	}
+
 	l.counts[idx]++
-	log.Printf("picked backend %d", idx)
-
-	l.mu.Unlock() // unlock before returning, not deferred
-
 	return l.targets[idx], func() {
 		l.mu.Lock()
 		l.counts[idx]--
