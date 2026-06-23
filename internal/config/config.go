@@ -9,6 +9,8 @@ type Config struct {
     Algorithm string          `yaml:"algorithm"`
     HealthInterval  int       `yaml:"health_interval"`  // seconds between checks
     HealthTimeout   int       `yaml:"health_timeout"`   // seconds before giving up
+    RateLimit  int `yaml:"rate_limit"`   // number of request per sec
+    RateBurst  int `yaml:"rate_burst"`   // burst size
 }
 
 type BackendConfig struct {

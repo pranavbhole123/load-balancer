@@ -8,6 +8,7 @@ import (
 
 	"github.com/pranavbhole123/load-balancer/internal/balancer"
 	"github.com/pranavbhole123/load-balancer/internal/health"
+	"github.com/pranavbhole123/load-balancer/internal/middleware"
 	"github.com/pranavbhole123/load-balancer/internal/parser"
 	"github.com/pranavbhole123/load-balancer/internal/proxy"
 	"github.com/pranavbhole123/load-balancer/internal/server"
@@ -67,17 +68,20 @@ func main() {
 
 
 
+	ratelimiter := middleware.NewRateLimiter(cfg.RateBurst  ,cfg.RateLimit)
 
 	proxy := proxy.New(balance)
 
 	// now we need to launch a go routine which will do background checks
 	//first we make the context 
+
+	handler := ratelimiter.Wrap(proxy)
 	ctx , cancel := context.WithCancel(context.Background())
 
 	
 	
 	
-	serv := server.New(cfg.Port, proxy)
+	serv := server.New(cfg.Port, handler)
 
 
 	go check.Start(ctx)
