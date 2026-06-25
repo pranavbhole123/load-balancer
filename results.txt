@@ -1,0 +1,151 @@
+without connection pooling 
+
+rate_limit: 10000
+rate_burst: 1000
+
+pranav@fedora:~/Desktop/load-balancer$ ~/go/bin/hey -n 5000 -c 50 http://localhost:8080
+
+Summary:
+  Total:        3.1616 secs
+  Slowest:      2.0943 secs
+  Fastest:      0.0009 secs
+  Average:      0.0226 secs
+  Requests/sec: 1581.4843
+  
+  Total data:   2665000 bytes
+  Size/request: 533 bytes
+
+Response time histogram:
+  0.001 [1]     |
+  0.210 [4939]  |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+  0.420 [6]     |
+  0.629 [0]     |
+  0.838 [0]     |
+  1.048 [19]    |
+  1.257 [22]    |
+  1.466 [4]     |
+  1.676 [0]     |
+  1.885 [0]     |
+  2.094 [9]     |
+
+
+Latency distribution:
+  10%% in 0.0024 secs
+  25%% in 0.0051 secs
+  50%% in 0.0095 secs
+  75%% in 0.0126 secs
+  90%% in 0.0153 secs
+  95%% in 0.0172 secs
+  99%% in 1.0208 secs
+
+Details (average, fastest, slowest):
+  DNS+dialup:   0.0000 secs, 0.0000 secs, 0.0065 secs
+  DNS-lookup:   0.0000 secs, 0.0000 secs, 0.0044 secs
+  req write:    0.0000 secs, 0.0000 secs, 0.0028 secs
+  resp wait:    0.0225 secs, 0.0008 secs, 2.0875 secs
+  resp read:    0.0001 secs, 0.0000 secs, 0.0007 secs
+
+Status code distribution:
+  [200] 5000 responses
+
+
+
+
+
+now results with connection pooling 
+
+pranav@fedora:~/Desktop/load-balancer$ ~/go/bin/hey -n 5000 -c 50 http://localhost:8080
+
+Summary:
+  Total:        3.9319 secs
+  Slowest:      2.0988 secs
+  Fastest:      0.0009 secs
+  Average:      0.0245 secs
+  Requests/sec: 1271.6525
+  
+  Total data:   2900000 bytes
+  Size/request: 580 bytes
+
+Response time histogram:
+  0.001 [1]     |
+  0.211 [4932]  |■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+  0.420 [1]     |
+  0.630 [0]     |
+  0.840 [0]     |
+  1.050 [26]    |
+  1.260 [27]    |
+  1.469 [7]     |
+  1.679 [3]     |
+  1.889 [0]     |
+  2.099 [3]     |
+
+
+Latency distribution:
+  10%% in 0.0020 secs
+  25%% in 0.0037 secs
+  50%% in 0.0103 secs
+  75%% in 0.0138 secs
+  90%% in 0.0167 secs
+  95%% in 0.0189 secs
+  99%% in 1.0330 secs
+
+Details (average, fastest, slowest):
+  DNS+dialup:   0.0000 secs, 0.0000 secs, 0.0060 secs
+  DNS-lookup:   0.0000 secs, 0.0000 secs, 0.0030 secs
+  req write:    0.0000 secs, 0.0000 secs, 0.0045 secs
+  resp wait:    0.0244 secs, 0.0008 secs, 2.0952 secs
+  resp read:    0.0001 secs, 0.0000 secs, 0.0016 secs
+
+Status code distribution:
+  [200] 5000 responses
+
+
+
+
+
+14:52
+This is actually expected. Let me explain why.
+
+Why there's no difference
+Your backend is a Python http.server. It's single threaded — handles one request at a time. The bottleneck is the backend, not your connection pool.
+
+Connection pooling helps when TCP handshake overhead is significant relative to request processing time. With a Python server that takes 20ms to respond, saving 1ms on handshake is noise.
+
+Also you're testing locally — localhost. TCP handshake on localhost is ~0.1ms. On a real network it's 50-100ms. Connection pooling's benefit is proportional to network latency.
+
+How to actually see the difference
+You need a fast backend. Write one in Go:
+
+go
+// testserver/main.go
+package main
+
+import (
+    "fmt"
+    "net/http"
+    "os"
+)
+
+func main() {
+    port := os.Args[1]
+    http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+        fmt.Fprintf(w, "backend %s", port)
+    })
+    http.ListenAndServe(":"+port, nil)
+}
+Run two instances:
+
+bash
+go run testserver/main.go 9090 &
+go run testserver/main.go 9091 &
+Now benchmark again with and without pooling. The Go backend responds in microseconds — handshake overhead becomes significant.
+
+The real talking point for your resume
+The numbers themselves matter less than understanding why. In your README write:
+
+Connection pooling shows minimal improvement on localhost with slow backends.
+Benefit is proportional to network round-trip time and backend response speed.
+In production (cross-datacenter, fast backends) expected 3-5x improvement.
+That shows deeper understanding than just posting impressive numbers.
+
+Run the Go backend benchmark. Come back with numbers then we move to Phase 5.

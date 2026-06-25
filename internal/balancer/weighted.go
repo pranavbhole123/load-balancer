@@ -2,6 +2,7 @@ package balancer
 
 import (
 	"fmt"
+	"net/http"
 	"net/http/httputil"
 	"net/url"
 
@@ -14,7 +15,7 @@ import (
 
 
 
-func NewWeighted(backends []string, weights []int, checker *health.Checker ) (*RoundRobin, error) {
+func NewWeighted(backends []string, weights []int, checker *health.Checker, transport *http.Transport ) (*RoundRobin, error) {
 
 	// now what we need to do is to expand the backends
 
@@ -37,6 +38,7 @@ func NewWeighted(backends []string, weights []int, checker *health.Checker ) (*R
 			)
 		}
 		proxy := httputil.NewSingleHostReverseProxy(remote)
+		proxy.Transport = transport
 		for i := 0; i < weights[j]; i++ {
     		rr.targets = append(rr.targets, proxy)  // same pointer, repeated
 		}

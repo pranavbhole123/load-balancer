@@ -2,6 +2,7 @@ package balancer
 
 import (
 	"fmt"
+	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"sync"
@@ -19,7 +20,7 @@ type Leastconn struct {
 
 // now we need a constructo
 
-func NewLeastConn(backends []string, checker *health.Checker) (*Leastconn, error) {
+func NewLeastConn(backends []string, checker *health.Checker, transport *http.Transport) (*Leastconn, error) {
 	l := &Leastconn{}
 	l.checker = checker
 
@@ -33,9 +34,11 @@ func NewLeastConn(backends []string, checker *health.Checker) (*Leastconn, error
 			)
 		}
 
+		temp := httputil.NewSingleHostReverseProxy(remote)
+		temp.Transport = transport
 		l.targets = append(
 			l.targets,
-			httputil.NewSingleHostReverseProxy(remote),
+			temp,
 		)
 		l.counts = append(l.counts, 0)
 	}

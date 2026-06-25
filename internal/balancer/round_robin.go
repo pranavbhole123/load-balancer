@@ -3,6 +3,7 @@ package balancer
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"sync/atomic"
@@ -18,7 +19,7 @@ type RoundRobin struct {
 }
 
 // now Round robin need a constructor and a next method
-func NewRoundRobin(backends []string, checker *health.Checker) (*RoundRobin, error) {
+func NewRoundRobin(backends []string, checker *health.Checker, transport *http.Transport) (*RoundRobin, error) {
 	rr := &RoundRobin{}
 	// keep current 0 at start
 
@@ -33,12 +34,17 @@ func NewRoundRobin(backends []string, checker *health.Checker) (*RoundRobin, err
 				b,
 				err,
 			)
-		}
+		}	
+
+		temp:= httputil.NewSingleHostReverseProxy(remote)
+
+		temp.Transport = transport
 
 		rr.targets = append(
 			rr.targets,
-			httputil.NewSingleHostReverseProxy(remote),
+			temp,
 		)
+
 	}
 
 	return rr, nil

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"time"
 
 	"github.com/pranavbhole123/load-balancer/internal/balancer"
@@ -14,16 +15,16 @@ import (
 	"github.com/pranavbhole123/load-balancer/internal/server"
 )
 
-func helperChoose(algo string, urls []string, weights []int, checker *health.Checker) (proxy.Balancer, error) {
+func helperChoose(algo string, urls []string, weights []int, checker *health.Checker,  transport *http.Transport) (proxy.Balancer, error) {
 	switch algo {
 	case "round-robin":
-		a, b := balancer.NewRoundRobin(urls,checker)
+		a, b := balancer.NewRoundRobin(urls,checker,transport)
 		return a, b
 	case "least-connection":
-		a, b := balancer.NewLeastConn(urls, checker)
+		a, b := balancer.NewLeastConn(urls, checker,transport)
 		return a, b
 	case "weighted":
-		a, b := balancer.NewWeighted(urls, weights, checker)
+		a, b := balancer.NewWeighted(urls, weights, checker,transport)
 		return a, b
 
 	default:
@@ -59,8 +60,14 @@ func main() {
 	)
 
 
+	transport := &http.Transport{
+	MaxIdleConns:        300,
+    MaxIdleConnsPerHost: 50,
+    MaxConnsPerHost:     100,
+    IdleConnTimeout:     90 * time.Second,
+	}
 
-	balance, err := helperChoose(cfg.Algorithm, urls, weights , check)
+	balance, err := helperChoose(cfg.Algorithm, urls, weights , check,transport)
 
 	if err != nil {
 		log.Fatal(err)
