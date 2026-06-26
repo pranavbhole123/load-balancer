@@ -1,5 +1,5 @@
 port: 8080
-algorithm: round-robin
+algorithm: consistent-hash
 health_interval: 5
 health_timeout: 3
 rate_limit: 10000

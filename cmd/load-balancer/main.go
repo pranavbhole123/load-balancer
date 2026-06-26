@@ -15,6 +15,8 @@ import (
 	"github.com/pranavbhole123/load-balancer/internal/server"
 )
 
+const ConsistentHashNodes = 5
+
 func helperChoose(algo string, urls []string, weights []int, checker *health.Checker,  transport *http.Transport) (proxy.Balancer, error) {
 	switch algo {
 	case "round-robin":
@@ -26,6 +28,10 @@ func helperChoose(algo string, urls []string, weights []int, checker *health.Che
 	case "weighted":
 		a, b := balancer.NewWeighted(urls, weights, checker,transport)
 		return a, b
+
+	case "consistent-hash":
+		a,b := balancer.NewConsistentHash(urls,checker , ConsistentHashNodes , transport)
+		return a ,b 
 
 	default:
 		return nil, fmt.Errorf("please enter valid algorith name %q", algo)

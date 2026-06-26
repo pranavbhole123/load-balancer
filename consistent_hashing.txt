@@ -1,0 +1,66 @@
+That's called **sticky sessions** — and it's a valid real-world approach. Nginx does exactly this with cookies. Good instinct.
+
+But it has problems:
+
+- You're storing session affinity state on the client — client can tamper with the cookie
+- Every new user needs a cookie set — extra round trip
+- If that backend dies, the cookie points to a dead server
+
+---
+
+Consistent hashing solves it differently — **no cookies, no state, pure math.**
+
+The idea: hash the client's IP to always deterministically pick the same backend. Same IP → same hash → same backend. Every time. No memory, no cookies, no state stored anywhere.
+
+```
+client IP "192.168.1.1" → hash → always backend 2
+client IP "10.0.0.5"    → hash → always backend 0
+client IP "172.16.0.3"  → hash → always backend 1
+```
+
+Same input always produces same output — that's what makes it consistent.
+
+---
+
+## The naive approach and why it breaks
+
+```go
+idx := hash(ip) % len(backends)  // always same backend for same IP
+```
+
+This works until you add or remove a backend. If you go from 3 backends to 4:
+
+```
+hash(ip) % 3 = 1   // was going to backend 1
+hash(ip) % 4 = 3   // now going to backend 3
+```
+
+**Every single client gets rerouted.** All sessions break simultaneously. With 1 million users that's catastrophic.
+
+---
+
+## What consistent hashing actually does
+
+Instead of `% N`, you put backends on a **ring** — a circle of 0 to 2³² positions. Each backend gets placed at multiple points on the ring (called virtual nodes). To route a request, hash the client IP, find that position on the ring, walk clockwise until you hit a backend.
+
+```
+         backend A
+        /
+  ── 0 ────────── 2³²
+        \
+         backend B ── backend C
+```
+
+Now if you remove a backend — only clients whose hash falls near that backend get rerouted. Everyone else is unaffected. Typically ~1/N of clients reroute instead of all of them.
+
+---
+
+Now three questions before you build:
+
+**Q1.** Virtual nodes — each backend appears multiple times on the ring. Why? What problem does having only one position per backend cause?
+
+**Q2.** You need to find the nearest backend clockwise from a hash position. What data structure lets you do this efficiently — and what Go standard library supports it?
+
+**Q3.** A backend dies and gets removed from the ring. What happens to clients that were hashing to it?
+
+Answer these then we design the struct.

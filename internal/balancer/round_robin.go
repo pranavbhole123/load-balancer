@@ -52,7 +52,7 @@ func NewRoundRobin(backends []string, checker *health.Checker, transport *http.T
 
 // also we need a next method
 
-func (r *RoundRobin) Next() (*httputil.ReverseProxy, func()) {
+func (r *RoundRobin) Next(req *http.Request) (*httputil.ReverseProxy, func()) {
 
 	// now we choose the next element
 

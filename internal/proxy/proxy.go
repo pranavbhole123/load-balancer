@@ -10,7 +10,7 @@ type Proxy struct {
 }
 
 type Balancer interface {
-	Next() (*httputil.ReverseProxy, func())
+	Next(r *http.Request) (*httputil.ReverseProxy, func())
 }
 
 func New(balanc Balancer) *Proxy {
@@ -21,7 +21,7 @@ func New(balanc Balancer) *Proxy {
 }
 
 func (p *Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	target , done := p.balancer.Next()
+	target , done := p.balancer.Next(r)
     if target == nil {
         http.Error(w, "no backends available", http.StatusServiceUnavailable)
         return

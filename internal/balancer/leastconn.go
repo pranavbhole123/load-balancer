@@ -46,7 +46,7 @@ func NewLeastConn(backends []string, checker *health.Checker, transport *http.Tr
 	return l, nil
 }
 
-func (l *Leastconn) Next() (*httputil.ReverseProxy, func()) {
+func (l *Leastconn) Next(req * http.Request) (*httputil.ReverseProxy, func()) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
