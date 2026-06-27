@@ -1,0 +1,109 @@
+## Three metric types — explained simply
+
+---
+
+### Counter — only goes up
+
+Counts how many times something happened. Never decreases. If the process restarts, resets to zero.
+
+```
+requests_total = 0
+request comes in → requests_total = 1
+request comes in → requests_total = 2
+request comes in → requests_total = 3
+```
+
+**Real use:** total requests served, total errors, total bytes sent. You query the *rate of change* — "how many requests per second right now" — not the raw number.
+
+---
+
+### Gauge — goes up and down
+
+Current value of something right now. Like a thermometer.
+
+```
+active_connections = 0
+request comes in  → active_connections = 1
+request comes in  → active_connections = 2
+request finishes  → active_connections = 1
+request finishes  → active_connections = 0
+```
+
+**Real use:** current memory usage, current active connections, current queue depth, backend health status (1 = up, 0 = down).
+
+---
+
+### Histogram — measures distribution
+
+Records how long something took, bucketed by duration. This is how you get p99 latency.
+
+```
+request took 5ms   → bucket "≤10ms"  count++
+request took 8ms   → bucket "≤10ms"  count++
+request took 15ms  → bucket "≤25ms"  count++
+request took 200ms → bucket "≤250ms" count++
+```
+
+Prometheus stores multiple buckets automatically. You query "what is the 99th percentile latency" and it calculates from the buckets.
+
+**Real use:** request duration, database query time, any operation where you care about distribution not just average.
+
+---
+
+### Why average latency lies
+
+This is important to understand deeply.
+
+```
+9 requests at 5ms
+1 request  at 500ms
+Average = (9×5 + 500) / 10 = 54.5ms
+```
+
+Average says 54ms. Reality — 90% of users see 5ms, one user sees 500ms. Average hides the outlier completely.
+
+p99 = 500ms tells the truth — 1% of users are getting a terrible experience. Fix that one slow request.
+
+This is why every serious system uses histograms and percentiles, never averages for latency.
+
+---
+
+### What you're adding
+
+```go
+// counter — increments on every request
+requests_total{backend="localhost:9090", status="200"} 1523
+requests_total{backend="localhost:9091", status="200"} 1489
+requests_total{backend="localhost:9090", status="502"} 3
+
+// histogram — records duration of every request
+request_duration_seconds{backend="localhost:9090", quantile="0.99"} 0.045
+
+// gauge — current snapshot
+active_connections{backend="localhost:9090"} 12
+active_connections{backend="localhost:9091"} 8
+backend_health{backend="localhost:9090"} 1
+backend_health{backend="localhost:9091"} 0   ← this one is down
+```
+
+Prometheus scrapes your `/metrics` endpoint every 15 seconds and stores all this. Grafana reads from Prometheus and draws dashboards.
+
+---
+
+### How it fits into your architecture
+
+Metrics live in a new middleware — same pattern as rate limiter:
+
+```
+Request → RateLimiter.Wrap → Metrics.Wrap → Proxy → Backend
+```
+
+`Metrics.Wrap` starts a timer, calls next handler, records duration and status code when response comes back.
+
+---
+
+Now before building — one question:
+
+The metrics middleware needs to know which backend was selected to label the metrics correctly. But middleware wraps the proxy and runs before `Next()` is called. How do you get the backend URL into your metrics label?
+
+Think about this — it changes how `proxy.go` works slightly.

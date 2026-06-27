@@ -14,6 +14,7 @@ import (
 type RoundRobin struct {
 	// what all things we need inside this struct
 	targets []*httputil.ReverseProxy
+	backend []string
 	current uint64
 	checker *health.Checker
 }
@@ -25,6 +26,7 @@ func NewRoundRobin(backends []string, checker *health.Checker, transport *http.T
 
 	rr.current = 0
 	rr.checker = checker
+	rr.backend = backends
 
 	for _, b := range backends {
 		remote, err := url.Parse(b)
@@ -40,6 +42,7 @@ func NewRoundRobin(backends []string, checker *health.Checker, transport *http.T
 
 		temp.Transport = transport
 
+		
 		rr.targets = append(
 			rr.targets,
 			temp,
@@ -52,7 +55,7 @@ func NewRoundRobin(backends []string, checker *health.Checker, transport *http.T
 
 // also we need a next method
 
-func (r *RoundRobin) Next(req *http.Request) (*httputil.ReverseProxy, func()) {
+func (r *RoundRobin) Next(req *http.Request) (*httputil.ReverseProxy, string ,func()) {
 
 	// now we choose the next element
 
@@ -65,9 +68,9 @@ func (r *RoundRobin) Next(req *http.Request) (*httputil.ReverseProxy, func()) {
 
 			log.Printf("picked backend %d", idx)
 
-			return r.targets[idx], func() {}
+			return r.targets[idx],r.backend[idx] ,func() {}
 		}
 	}
-	return nil, func() {}
+	return nil, "",func() {}
 
 }

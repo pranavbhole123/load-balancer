@@ -13,6 +13,7 @@ import (
 type Leastconn struct {
 	// what all things should it have
 	targets []*httputil.ReverseProxy
+	backends []string
 	counts  []int64
 	mu      sync.Mutex
 	checker *health.Checker
@@ -23,7 +24,7 @@ type Leastconn struct {
 func NewLeastConn(backends []string, checker *health.Checker, transport *http.Transport) (*Leastconn, error) {
 	l := &Leastconn{}
 	l.checker = checker
-
+	l.backends = backends
 	for _, b := range backends {
 		remote, err := url.Parse(b)
 		if err != nil {
@@ -36,6 +37,7 @@ func NewLeastConn(backends []string, checker *health.Checker, transport *http.Tr
 
 		temp := httputil.NewSingleHostReverseProxy(remote)
 		temp.Transport = transport
+		
 		l.targets = append(
 			l.targets,
 			temp,
@@ -46,7 +48,7 @@ func NewLeastConn(backends []string, checker *health.Checker, transport *http.Tr
 	return l, nil
 }
 
-func (l *Leastconn) Next(req * http.Request) (*httputil.ReverseProxy, func()) {
+func (l *Leastconn) Next(req * http.Request) (*httputil.ReverseProxy,string, func()) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -64,11 +66,11 @@ func (l *Leastconn) Next(req * http.Request) (*httputil.ReverseProxy, func()) {
 	}
 
 	if idx == -1 {
-		return nil, func() {}
+		return nil, "",func() {}
 	}
 
 	l.counts[idx]++
-	return l.targets[idx], func() {
+	return l.targets[idx],l.backends[idx], func() {
 		l.mu.Lock()
 		l.counts[idx]--
 		l.mu.Unlock()

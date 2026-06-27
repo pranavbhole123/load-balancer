@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type Server struct {
@@ -22,8 +23,9 @@ func New(por int, h http.Handler) *Server {
 
 // rest we need the start method
 func (s *Server) Start() error {
-	return http.ListenAndServe(
-		fmt.Sprintf(":%d", s.port),
-		s.handler,
-	)
+	mux := http.NewServeMux()
+
+	mux.Handle("/metrics",promhttp.Handler())
+	mux.Handle("/", s.handler)
+	return http.ListenAndServe(fmt.Sprintf(":%d", s.port), mux)
 }

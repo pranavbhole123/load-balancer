@@ -41,6 +41,7 @@ func NewWeighted(backends []string, weights []int, checker *health.Checker, tran
 		proxy.Transport = transport
 		for i := 0; i < weights[j]; i++ {
     		rr.targets = append(rr.targets, proxy)  // same pointer, repeated
+			rr.backend = append(rr.backend, b)
 		}
 	}
 

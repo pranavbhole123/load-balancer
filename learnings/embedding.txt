@@ -1,0 +1,80 @@
+## Embedding in Go — in short
+
+Embedding means putting a type inside a struct **without a field name**. The outer struct automatically gets all the methods of the embedded type.
+
+```go
+// normal named field — you own nothing, must delegate manually
+type Dog struct {
+    animal Animal  // named field
+}
+dog.animal.Speak()  // must go through field name
+
+// embedding — you inherit everything
+type Dog struct {
+    Animal  // embedded — no field name
+}
+dog.Speak()  // works directly — promoted to Dog automatically
+```
+
+---
+
+## Concrete example
+
+```go
+type Animal struct {
+    Name string
+}
+
+func (a Animal) Speak() string {
+    return a.Name + " makes a sound"
+}
+
+func (a Animal) Eat() string {
+    return a.Name + " is eating"
+}
+
+type Dog struct {
+    Animal        // embedded — Dog inherits Speak() and Eat()
+    Breed string
+}
+
+// override only what you want
+func (d Dog) Speak() string {
+    return d.Name + " barks"  // Dog's own version
+}
+```
+
+```go
+d := Dog{Animal: Animal{Name: "Bruno"}, Breed: "Labrador"}
+
+d.Speak()  // "Bruno barks"     ← Dog's own method
+d.Eat()    // "Bruno is eating" ← inherited from Animal automatically
+d.Name     // "Bruno"           ← Animal's field promoted to Dog too
+```
+
+---
+
+## How it applies to your responseWriter
+
+```go
+type responseWriter struct {
+    http.ResponseWriter  // embedded — inherit Header() and Write() for free
+    statusCode int
+}
+
+// only override WriteHeader — intercept and save code
+func (rw *responseWriter) WriteHeader(code int) {
+    rw.statusCode = code
+    rw.ResponseWriter.WriteHeader(code)  // call the real one underneath
+}
+```
+
+ReverseProxy calls `rw.Write(body)` — goes to embedded writer automatically.
+ReverseProxy calls `rw.Header()` — goes to embedded writer automatically.
+ReverseProxy calls `rw.WriteHeader(200)` — hits YOUR override, saves 200, passes through.
+
+---
+
+This is not inheritance like Java or Python. Go has no inheritance. Embedding is **composition** — you're saying "this struct contains and promotes another type's behaviour." Subtle but important distinction.
+
+Now go build `metrics.go`.

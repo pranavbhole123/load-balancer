@@ -54,7 +54,7 @@ func (c *ConsistentHash) buildRing() {
 
 }
 
-func (c *ConsistentHash) Next(r *http.Request) (*httputil.ReverseProxy, func()) {
+func (c *ConsistentHash) Next(r *http.Request) (*httputil.ReverseProxy, string,func()) {
 	// now what we do in this function is
 	//first find the hash of incoming req ip
 
@@ -80,10 +80,10 @@ func (c *ConsistentHash) Next(r *http.Request) (*httputil.ReverseProxy, func()) 
 
 		if c.checker.IsActive(candidate.idx) {
 			log.Printf("picked backend %d", candidate.idx)
-			return c.targets[candidate.idx], func() {}
+			return c.targets[candidate.idx],c.backends[candidate.idx], func() {}
 		}
 	}
-	return nil, func() {}
+	return nil, "",func() {}
 	// but if it is not active we need to find the next one in clockwise direction
 
 }
