@@ -1,31 +1,40 @@
+// internal/server/server.go
 package server
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type Server struct {
 	port    int
 	handler http.Handler
-	// add rest necessary things we need
+	httpSrv *http.Server
 }
 
-// functions
-func New(por int, h http.Handler) *Server {
-	// constructor for the new server object i guess we dont need anythins else
+func New(port int, h http.Handler) *Server {
 	return &Server{
-		port:    por,
+		port:    port,
 		handler: h,
 	}
 }
 
-// rest we need the start method
 func (s *Server) Start() error {
 	mux := http.NewServeMux()
-
-	mux.Handle("/metrics",promhttp.Handler())
+	mux.Handle("/metrics", promhttp.Handler())
 	mux.Handle("/", s.handler)
-	return http.ListenAndServe(fmt.Sprintf(":%d", s.port), mux)
+
+	s.httpSrv = &http.Server{
+		Addr:    fmt.Sprintf(":%d", s.port),
+		Handler: mux,
+	}
+
+	return s.httpSrv.ListenAndServe()
+}
+
+func (s *Server) Shutdown(ctx context.Context) error {
+	return s.httpSrv.Shutdown(ctx)
 }

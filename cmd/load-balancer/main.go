@@ -1,3 +1,4 @@
+// cmd/load-balancer/main.go
 package main
 
 import (
@@ -5,12 +6,14 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
-
-	"github.com/pranavbhole123/load-balancer/internal/metrics"
 
 	"github.com/pranavbhole123/load-balancer/internal/balancer"
 	"github.com/pranavbhole123/load-balancer/internal/health"
+	"github.com/pranavbhole123/load-balancer/internal/metrics"
 	"github.com/pranavbhole123/load-balancer/internal/middleware"
 	"github.com/pranavbhole123/load-balancer/internal/parser"
 	"github.com/pranavbhole123/load-balancer/internal/proxy"
@@ -30,13 +33,11 @@ func helperChoose(algo string, urls []string, weights []int, checker *health.Che
 	case "weighted":
 		a, b := balancer.NewWeighted(urls, weights, checker, transport)
 		return a, b
-
 	case "consistent-hash":
 		a, b := balancer.NewConsistentHash(urls, checker, ConsistentHashNodes, transport)
 		return a, b
-
 	default:
-		return nil, fmt.Errorf("please enter valid algorith name %q", algo)
+		return nil, fmt.Errorf("please enter valid algorithm name %q", algo)
 	}
 }
 
@@ -52,14 +53,9 @@ func main() {
 	}
 
 	weights := make([]int, len(cfg.Backends))
-
 	for i, b := range cfg.Backends {
 		weights[i] = b.Weight
 	}
-
-	// now we need to customixe main
-	// firs twe need to see which type of algo and make a balancer accoringly
-	// we will make a fucntion fot this
 
 	check := health.NewChecker(urls,
 		time.Duration(cfg.HealthInterval)*time.Second,
@@ -74,28 +70,45 @@ func main() {
 	}
 
 	balance, err := helperChoose(cfg.Algorithm, urls, weights, check, transport)
-
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	ratelimiter := middleware.NewRateLimiter(cfg.RateBurst, cfg.RateLimit)
-
 	recorder := metrics.NewRecorder()
+	prox := proxy.New(balance, recorder)
+	handler := ratelimiter.Wrap(prox)
 
-	proxy := proxy.New(balance , recorder)
-
-	// now we need to launch a go routine which will do background checks
-	//first we make the context
-
-	handler := ratelimiter.Wrap(proxy)
-	ctx, cancel := context.WithCancel(context.Background())
+	// health checker context — cancelled on shutdown
+	healthCtx, healthCancel := context.WithCancel(context.Background())
+	go check.Start(healthCtx)
 
 	serv := server.New(cfg.Port, handler)
 
-	go check.Start(ctx)
+	// run server in goroutine
+	go func() {
+		log.Printf("starting load balancer on port %d", cfg.Port)
+		if err := serv.Start(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("server error: %v", err)
+		}
+	}()
 
-	defer cancel()
-	log.Fatal(serv.Start())
+	// block until SIGTERM or SIGINT
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
+	<-quit
 
+	log.Println("shutdown signal received — draining in-flight requests...")
+
+	// give in-flight requests 30 seconds to complete
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
+
+	healthCancel() // stop health checker
+
+	if err := serv.Shutdown(shutdownCtx); err != nil {
+		log.Fatalf("forced shutdown: %v", err)
+	}
+
+	log.Println("shutdown complete")
 }
